@@ -15,4 +15,4 @@ For example:
 &nbsp;&nbsp;&nbsp;&nbsp;    "start": 1. 
 }  
 Start indicates whether to start saving measurements from powermeter (1) or to stop saving measurements (0).  
-When api request with start = 0 is sent, the response will be a consumption value in kWh. 
+When api request with start = 0 is sent, the response will be a consumption value in Wh. 
