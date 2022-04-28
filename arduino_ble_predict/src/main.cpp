@@ -1,8 +1,4 @@
 #include <Arduino.h>
-static bool microphone_inference_start(uint32_t);
-void microphone_detection(void);
-static bool microphone_inference_record(void);
-static int microphone_audio_signal_get_data(size_t , size_t, float *);
 /* Edge Impulse Arduino examples
  * Copyright (c) 2021 EdgeImpulse Inc.
  *
@@ -27,14 +23,12 @@ static int microphone_audio_signal_get_data(size_t , size_t, float *);
 
 // If your target is limited in memory remove this macro to save 10K RAM
 #define EIDSP_QUANTIZE_FILTERBANK   0
-
-/**
- * Define the number of slices per model window. E.g. a model window of 1000 ms
- * with slices per model window set to 4. Results in a slice size of 250 ms.
- * For more info: https://docs.edgeimpulse.com/docs/continuous-audio-sampling
- */
-#define EI_CLASSIFIER_SLICES_PER_MODEL_WINDOW 3
-
+static bool microphone_inference_start(uint32_t);
+static void microphone_inference_end(void);
+void microphone_detection(void);
+static bool microphone_inference_record(void);
+static int microphone_audio_signal_get_data(size_t offset, size_t length, float *out_ptr);
+void record_microphone_nc(void);
 /*
  ** NOTE: If you run into TFLite arena allocation issue.
  **
@@ -51,13 +45,21 @@ static int microphone_audio_signal_get_data(size_t , size_t, float *);
  */
 
 /* Includes ---------------------------------------------------------------- */
+
 #include <PDM.h>
 #include <aleks-project-1_inferencing.h>
-
-#include <Arduino_LSM9DS1.h>
 #include <ArduinoBLE.h>
+/** Audio buffers, pointers and selectors */
+typedef struct {
+    int16_t *buffer;
+    uint8_t buf_ready;
+    uint32_t buf_count;
+    uint32_t n_samples;
+} inference_t;
 
-#define CONVERT_G_TO_MS2    9.80665f
+static inference_t inference;
+static signed short sampleBuffer[2048];
+static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
 #define BLE_UUID_SERVICE                    "23937b16-acc8-11eb-8529-0242ac130003"
 #define BLE_UUID_STRING_CHARACTERISTIC      "1A3AC131-31EF-758B-BC51-54A61958EF82"
 
@@ -67,22 +69,10 @@ int prediction = 0;
 int oldPrediction = 0;
 long previousMillis = 0;
 long previousUpdateMillis = 0;
+volatile double currentPower=0;
 /** Audio buffers, pointers and selectors */
 char data_to_send[] = "Hello World!";
 
-typedef struct {
-    signed short *buffers[2];
-    unsigned char buf_select;
-    unsigned char buf_ready;
-    unsigned int buf_count;
-    unsigned int n_samples;
-} inference_t;
-
-static inference_t inference;
-static bool record_ready = false;
-static signed short *sampleBuffer;
-static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
-static int print_results = -(EI_CLASSIFIER_SLICES_PER_MODEL_WINDOW);
 
 
 void initializeBLEConnection() {
@@ -102,49 +92,32 @@ void initializeBLEConnection() {
   Serial.println("Waiting for connections...");
 }
 
-void updatePrediction() {
-  long currentMillis = millis();
-
-  if (prediction != oldPrediction || (currentMillis - previousUpdateMillis) >= 5000) {      // if the battery level has changed
-    previousUpdateMillis = currentMillis;
-    bleStringCharacteristic.writeValue(data_to_send);  // and update the battery level characteristic
-    oldPrediction = prediction;           // save the level for next comparison
-  }
-}
-
 /**
  * @brief      Arduino setup function
  */
 void setup()
 {
     // put your setup code here, to run once:
-    
     Serial.begin(115200);
-    while(!Serial);
-    Serial.println("Start:");
+
+    Serial.println("Edge Impulse Inferencing Demo");
+
     // summary of inferencing settings (from model_metadata.h)
     ei_printf("Inferencing settings:\n");
-    //ei_printf("\tInterval: %.2f ms.\n", (float)EI_CLASSIFIER_INTERVAL_MS);
-   // ei_printf("\tFrame size: %d\n", EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE);
-    //ei_printf("\tSample length: %d ms.\n", EI_CLASSIFIER_RAW_SAMPLE_COUNT / 16);
-   // ei_printf("\tNo. of classes: %d\n", sizeof(ei_classifier_inferencing_categories) /
-    //                                        sizeof(ei_classifier_inferencing_categories[0]));
-
-    
-    run_classifier_init();
-    
-    if (microphone_inference_start(EI_CLASSIFIER_SLICE_SIZE) == false) {
-       ei_printf("ERR: Failed to setup audio sampling\r\n");
+    ei_printf("\tInterval: %.2f ms.\n", (float)EI_CLASSIFIER_INTERVAL_MS);
+    ei_printf("\tFrame size: %d\n", EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE);
+    ei_printf("\tSample length: %d ms.\n", EI_CLASSIFIER_RAW_SAMPLE_COUNT / 16);
+    ei_printf("\tNo. of classes: %d\n", sizeof(ei_classifier_inferencing_categories) / sizeof(ei_classifier_inferencing_categories[0]));
+    initializeBLEConnection();
+    if (microphone_inference_start(EI_CLASSIFIER_RAW_SAMPLE_COUNT) == false) {
+        ei_printf("ERR: Failed to setup audio sampling\r\n");
         return;
     }
-    initializeBLEConnection();
 }
 
-void loop()
-{
+void loop(){
   // wait for a BLE central
   BLEDevice central = BLE.central();
-
   if (central) {
     Serial.println("Connected to central: ");
     // print the central's BT address:
@@ -152,23 +125,21 @@ void loop()
     // turn on the LED to indicate the connection:
     digitalWrite(LED_BUILTIN, HIGH);
 
-    // check the battery level every 200ms
-    // while the central is connected:
-    while (central.connected()) {
-      long currentMillis = millis();
 
-      microphone_detection();
-      // if 200ms have passed, check the battery level:
-      if (currentMillis - previousMillis >= 200) {
-        previousMillis = currentMillis;
-        //updatePrediction();
-      }
+    while (central.connected()) {
+      
+   record_microphone_nc();
+
+   bleStringCharacteristic.writeValue(data_to_send);
+    currentPower=0;
+    
     }
-    // when the central disconnects, turn off the LED:
+
     digitalWrite(LED_BUILTIN, LOW);
     Serial.print("Disconnected from central: ");
     Serial.println(central.address());
   }
+
 }
 
 
@@ -176,50 +147,46 @@ void loop()
 /**
  * @brief      Arduino main function. Runs the inferencing loop.
  */
-void microphone_detection()
+void record_microphone_nc()
 {
-  bool m = microphone_inference_record();
+
+    bool m = microphone_inference_record();
     if (!m) {
         ei_printf("ERR: Failed to record audio...\n");
         return;
     }
 
-    signal_t signal;
-    signal.total_length = EI_CLASSIFIER_SLICE_SIZE;
-    signal.get_data = &microphone_audio_signal_get_data;
-    ei_impulse_result_t result = {0};
+    ei_printf("Recording done\n");
 
-    EI_IMPULSE_ERROR r = run_classifier_continuous(&signal, &result, debug_nn);
+    signal_t signal;
+    signal.total_length = EI_CLASSIFIER_RAW_SAMPLE_COUNT;
+    signal.get_data = &microphone_audio_signal_get_data;
+    ei_impulse_result_t result = { 0 };
+
+    EI_IMPULSE_ERROR r = run_classifier(&signal, &result, debug_nn);
     if (r != EI_IMPULSE_OK) {
         ei_printf("ERR: Failed to run classifier (%d)\n", r);
         return;
     }
 
-    if (++print_results >= (EI_CLASSIFIER_SLICES_PER_MODEL_WINDOW)) {
-        // print the predictions
-        ei_printf("Predictions ");
-        ei_printf("(DSP: %d ms., Classification: %d ms., Anomaly: %d ms.)",
-            result.timing.dsp, result.timing.classification, result.timing.anomaly);
-        ei_printf(": \n");
-        float maxval=0;
-        int labelmax=0;
-        for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
-            
-            ei_printf("    %s: %.5f\n", result.classification[ix].label,
-                      result.classification[ix].value);
-            if(result.classification[ix].value>maxval){
+    // print the predictions
+    ei_printf("Predictions ");
+    ei_printf("(DSP: %d ms., Classification: %d ms., Anomaly: %d ms.)",
+        result.timing.dsp, result.timing.classification, result.timing.anomaly);
+    ei_printf(": \n");
+    float maxval=0;
+    int labelmax=0;
+    for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
+        ei_printf("    %s: %.5f\n", result.classification[ix].label, result.classification[ix].value);
+           if(result.classification[ix].value>maxval){
                 labelmax=ix;
                 maxval=result.classification[ix].value;
             }
-        }
-        sprintf(data_to_send,"%s",result.classification[labelmax].label);
-        updatePrediction();
-#if EI_CLASSIFIER_HAS_ANOMALY == 1
-        ei_printf("    anomaly score: %.3f\n", result.anomaly);
-#endif
-
-        print_results = 0;
     }
+    currentPower=sqrt(currentPower);
+    sprintf(data_to_send,"%s %d",result.classification[labelmax].label, (unsigned int) round(currentPower) );
+
+
 
 }
 
@@ -234,16 +201,17 @@ static void pdm_data_ready_inference_callback(void)
     // read into the sample buffer
     int bytesRead = PDM.read((char *)&sampleBuffer[0], bytesAvailable);
 
-    if (record_ready == true) {
-        for (int i = 0; i<bytesRead>> 1; i++) {
-            inference.buffers[inference.buf_select][inference.buf_count++] = sampleBuffer[i];
-
-            if (inference.buf_count >= inference.n_samples) {
-                inference.buf_select ^= 1;
+    if (inference.buf_ready == 0) {
+        for(int i = 0; i < bytesRead>>1; i++) {
+            inference.buffer[inference.buf_count++] = sampleBuffer[i];
+            currentPower+=sampleBuffer[i]*sampleBuffer[i]/(bytesRead>>1);
+            if(inference.buf_count >= inference.n_samples) {
                 inference.buf_count = 0;
                 inference.buf_ready = 1;
+                break;
             }
         }
+        
     }
 }
 
@@ -256,48 +224,33 @@ static void pdm_data_ready_inference_callback(void)
  */
 static bool microphone_inference_start(uint32_t n_samples)
 {
-    inference.buffers[0] = (signed short *)malloc(n_samples * sizeof(signed short));
+    inference.buffer = (int16_t *)malloc(n_samples * sizeof(int16_t));
 
-    if (inference.buffers[0] == NULL) {
+    if(inference.buffer == NULL) {
         return false;
     }
 
-    inference.buffers[1] = (signed short *)malloc(n_samples * sizeof(signed short));
-
-    if (inference.buffers[1] == NULL) {
-        free(inference.buffers[0]);
-        return false;
-    }
-
-    sampleBuffer = (signed short *)malloc((n_samples >> 1) * sizeof(signed short));
-
-    if (sampleBuffer == NULL) {
-        free(inference.buffers[0]);
-        free(inference.buffers[1]);
-        return false;
-    }
-
-    inference.buf_select = 0;
-    inference.buf_count = 0;
-    inference.n_samples = n_samples;
-    inference.buf_ready = 0;
+    inference.buf_count  = 0;
+    inference.n_samples  = n_samples;
+    inference.buf_ready  = 0;
 
     // configure the data receive callback
     PDM.onReceive(&pdm_data_ready_inference_callback);
 
-    PDM.setBufferSize((n_samples >> 1) * sizeof(int16_t));
+    PDM.setBufferSize(4096);
 
     // initialize PDM with:
     // - one channel (mono mode)
     // - a 16 kHz sample rate
     if (!PDM.begin(1, EI_CLASSIFIER_FREQUENCY)) {
         ei_printf("Failed to start PDM!");
+        microphone_inference_end();
+
+        return false;
     }
 
     // set the gain, defaults to 20
     PDM.setGain(127);
-
-    record_ready = true;
 
     return true;
 }
@@ -309,22 +262,14 @@ static bool microphone_inference_start(uint32_t n_samples)
  */
 static bool microphone_inference_record(void)
 {
-    bool ret = true;
-
-    if (inference.buf_ready == 1) {
-        ei_printf(
-            "Error sample buffer overrun. Decrease the number of slices per model window "
-            "(EI_CLASSIFIER_SLICES_PER_MODEL_WINDOW)\n");
-        ret = false;
-    }
-
-    while (inference.buf_ready == 0) {
-        delay(1);
-    }
-
     inference.buf_ready = 0;
+    inference.buf_count = 0;
 
-    return ret;
+    while(inference.buf_ready == 0) {
+        delay(10);
+    }
+
+    return true;
 }
 
 /**
@@ -332,7 +277,7 @@ static bool microphone_inference_record(void)
  */
 static int microphone_audio_signal_get_data(size_t offset, size_t length, float *out_ptr)
 {
-    numpy::int16_to_float(&inference.buffers[inference.buf_select ^ 1][offset], out_ptr, length);
+    numpy::int16_to_float(&inference.buffer[offset], out_ptr, length);
 
     return 0;
 }
@@ -343,9 +288,7 @@ static int microphone_audio_signal_get_data(size_t offset, size_t length, float 
 static void microphone_inference_end(void)
 {
     PDM.end();
-    free(inference.buffers[0]);
-    free(inference.buffers[1]);
-    free(sampleBuffer);
+    free(inference.buffer);
 }
 
 #if !defined(EI_CLASSIFIER_SENSOR) || EI_CLASSIFIER_SENSOR != EI_CLASSIFIER_SENSOR_MICROPHONE

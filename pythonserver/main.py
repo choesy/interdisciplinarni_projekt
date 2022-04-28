@@ -3,12 +3,12 @@ from datetime import datetime
 from threading import Event, Thread
 from flask import Flask, request
 from paho.mqtt import client as mqtt_client
-
+import json
 app = Flask(__name__)
 
 broker = 'rlab.lucami.org'
 port = 1883
-topic = "sensors/power/p1meter/actual_consumption"
+topic = "eCheck/powerMeterP1"
 # generate client ID with pub prefix randomly
 client_id = "test_4"
 username = 'lucmqtt'
@@ -36,11 +36,13 @@ def subscribe(client: mqtt_client):
     def on_message(client, userdata, msg):
         print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
         global l, values
+        value=json.loads(msg.payload.decode())
         x = {
-            "value": int(msg.payload.decode()),
+            "value":int(value["actual_consumption"]) ,
             "time": datetime.now().timestamp()
         }
         #save samples to array of length of 10 min ?
+        print(x["value"])
         l.append(x)   #add measurement to list
         values.append(x)
         if len(values) > 3:
