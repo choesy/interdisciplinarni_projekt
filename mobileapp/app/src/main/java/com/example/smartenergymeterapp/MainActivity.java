@@ -24,7 +24,6 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -36,6 +35,16 @@ import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.VideoView;
+
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -57,12 +66,20 @@ public class MainActivity extends AppCompatActivity {
     public static final UUID characteristicUUID = UUID.fromString("1A3AC131-31EF-758B-BC51-54A61958EF82");
     public static final UUID clientCharConfigUUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
+    /* HTTP REQUESTS */
+    private final String BASE_URL = "http://192.168.1.6:8080";  // CHANGE THIS TO SERVER IP!
+    private static String prevRecognizedDevice = "";
+    private int sumConsumption = 0;
+
     /** Views (UI) **/
     TextView stateBluetoothV;
     TextView bluetoothDevicesLabelV;
     TextView bluetoothDataV;
     Button pairButton;
     VideoView videoView;
+    TextView consumption;
+    TextView consumptionNumber;
+    TextView serverStatus;
 
     /** Permissions **/
     String[] permissions = new String[]{
@@ -87,6 +104,9 @@ public class MainActivity extends AppCompatActivity {
         ListView deviceListV = findViewById(R.id.device_list);
         videoView = findViewById(R.id.videoView);
         pairButton = findViewById(R.id.pair_button);
+        consumption = findViewById(R.id.consumption); consumption.setVisibility(View.INVISIBLE); consumption.setText("Consumption");
+        consumptionNumber = findViewById(R.id.consumption_number); consumptionNumber.setVisibility(View.INVISIBLE); consumptionNumber.setText("0wh");
+        serverStatus = findViewById(R.id.server_status); serverStatus.setVisibility(View.INVISIBLE); serverStatus.setText("{}");
 
         // Init
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -105,6 +125,9 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 connectToDeviceSelected(position);
             }
+        });
+        consumption.setOnClickListener((l)-> {
+            requestData("blender");
         });
     }
 
@@ -302,7 +325,16 @@ public class MainActivity extends AppCompatActivity {
                         bluetoothGatt.writeDescriptor(descriptor);
 
                         bluetoothGatt.readCharacteristic(bluetoothGattServiceCharacteristic); // Start receiving data from characteristic
+
+
                         showToast("Connected."); stateBluetoothV.post(() -> stateBluetoothV.setText("Connected."));  // Update UI
+                        videoView.post(() -> videoView.setVisibility(View.GONE));
+                        pairButton.post(() -> pairButton.setVisibility(View.GONE));
+                        consumption.post(() -> consumption.setVisibility(View.VISIBLE));
+                        consumptionNumber.post(() -> consumptionNumber.setVisibility(View.VISIBLE));
+                        serverStatus.post(() -> serverStatus.setVisibility(View.VISIBLE));
+
+
                     } else {
                         showToast("Error connecting BLE service.");
                     }
@@ -327,14 +359,17 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
             String s = new String(characteristic.getValue(), StandardCharsets.UTF_8);
-            Log.d("DEBUG", "Received: " + s);
             displayData(s);
+            String[] parsed = s.split(" ");
+            requestData(parsed[0]);
         }
 
         public void displayData(String data){
             // Display on element bluetoothDataV
             bluetoothDataV.post(() -> bluetoothDataV.setText(data));
         }
+
+        //public void
     };
 
 
@@ -379,10 +414,76 @@ public class MainActivity extends AppCompatActivity {
             // Checking whether user granted the permission or not.
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Log.d("DEBUG", "User granted permissions");
+                findBLEdevices();
             } else {
                 Log.d("DEBUG", "User denied permissions");
             }
         }
+    }
+
+
+
+
+
+
+
+
+    /** HTTP REQUEST GET/POST**/
+    private void requestData(String device) {
+
+        // Send on change
+        if(device.equals(prevRecognizedDevice)) {
+            return;
+        }
+        int stopOrStartSavingMeasurementsOnServer = 0;//0 (returns consumption) or 1 (start)
+        if (device.equals("blender") && prevRecognizedDevice.equals("tisina")) {
+            stopOrStartSavingMeasurementsOnServer = 1; // start saving
+        }
+        if (device.equals("tisina") && prevRecognizedDevice.equals("blender")) {
+            stopOrStartSavingMeasurementsOnServer = 0; // stop saving - gets response
+        }
+
+        prevRecognizedDevice = device;
+        Long timestamp = (System.currentTimeMillis()/1000);
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("userID", "test_4");
+            payload.put("time", timestamp);
+            payload.put("device", "blender");
+            payload.put("start", stopOrStartSavingMeasurementsOnServer);
+        } catch (JSONException e) {
+            Log.e("ERROR", e.toString());
+        }
+        Log.d("DEBUG", "POST: " + payload);
+
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.POST, BASE_URL,
+                payload,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.d("DEBUG", "RESPONSE: " + response.toString());
+                        serverStatus.setText(response.toString());
+                        if (response.has("calculated")){
+                            try {
+                                sumConsumption += response.getInt("calculated");
+                                consumptionNumber.setText(sumConsumption + "Wh");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        serverStatus.setText(error.toString());
+                        Log.d("DEBUG", "onErrorResponse " + error.toString());
+
+                    }
+                });
+
+        RequestQueue requestQueue = Volley.newRequestQueue(MainActivity.this);
+        requestQueue.add(jsonObjectRequest);
     }
 }
 
