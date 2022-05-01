@@ -47,7 +47,7 @@
 #define EI_CLASSIFIER_PROJECT_ID                 20766
 #define EI_CLASSIFIER_PROJECT_OWNER              "Aleks"
 #define EI_CLASSIFIER_PROJECT_NAME               "aleks-project-1"
-#define EI_CLASSIFIER_PROJECT_DEPLOY_VERSION     3
+#define EI_CLASSIFIER_PROJECT_DEPLOY_VERSION     5
 #define EI_CLASSIFIER_NN_INPUT_FRAME_SIZE        6435
 #define EI_CLASSIFIER_RAW_SAMPLE_COUNT           16000
 #define EI_CLASSIFIER_RAW_SAMPLES_PER_FRAME      1
@@ -200,5 +200,11 @@ typedef struct {
     int high_frequency;
     float pre_cof;
 } ei_dsp_config_audio_syntiant_t;
+
+typedef struct {
+    uint16_t implementation_version;
+    int axes;
+    bool scaling;
+} ei_dsp_config_imu_syntiant_t;
 
 #endif // _EI_CLASSIFIER_MODEL_METADATA_H_

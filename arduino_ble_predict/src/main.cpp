@@ -99,7 +99,6 @@ void setup()
 {
     // put your setup code here, to run once:
     Serial.begin(115200);
-
     Serial.println("Edge Impulse Inferencing Demo");
 
     // summary of inferencing settings (from model_metadata.h)
