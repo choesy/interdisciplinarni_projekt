@@ -140,7 +140,10 @@ def measurement():
 
 
 if __name__ == '__main__':
-    thread = Thread(target=simulate,args=(on_test_message,))
-    thread.daemon = True
-    thread.start()
+    if test:
+        thread = Thread(target=simulate,args=(on_test_message,))
+        thread.daemon = True
+        thread.start()
+    else:
+        runmqtt()
     runserver()
