@@ -1,9 +1,12 @@
 # python3.6
 from datetime import datetime
+from re import sub
 from threading import Event, Thread
 from flask import Flask, request
 from paho.mqtt import client as mqtt_client
+from stevec_simulator import simulate
 import json
+import sys
 app = Flask(__name__)
 
 broker = 'rlab.lucami.org'
@@ -13,7 +16,7 @@ topic = "eCheck/powerMeterP1"
 client_id = "test_4"
 username = 'lucmqtt'
 password = 'lucami2021'
-
+test=1
 
 def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, rc):
@@ -32,9 +35,28 @@ l = [] #list of values
 start_measure = Event()
 values = []
 
+def on_test_message(msg):
+        #print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
+        global l, values
+        x = {
+            "value":int(msg) ,
+            "time": datetime.now().timestamp()
+        }
+        #save samples to array of length of 10 min ?
+        print(x["value"])
+        l.append(x)   #add measurement to list
+        values.append(x)
+        if len(values) > 3:
+            values = values[-3:]
+        if start_measure.is_set():
+            values.append(l[-1])
+            print("adding to values")
+        l = l[-30:]    #redefine list as last 5 min
+
+
 def subscribe(client: mqtt_client):
     def on_message(client, userdata, msg):
-        print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
+        #print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
         global l, values
         value=json.loads(msg.payload.decode())
         x = {
@@ -57,11 +79,13 @@ def subscribe(client: mqtt_client):
     client.subscribe(topic)
     client.on_message = on_message
 
-
-def run():
+def runmqtt():
     client = connect_mqtt()
     subscribe(client)
     client.loop_start()
+    
+
+def runserver():
     app.run(host='0.0.0.0', port=8080)
 
 start_time = 0
@@ -116,5 +140,7 @@ def measurement():
 
 
 if __name__ == '__main__':
-    run()
-
+    thread = Thread(target=simulate,args=(on_test_message,))
+    thread.daemon = True
+    thread.start()
+    runserver()
