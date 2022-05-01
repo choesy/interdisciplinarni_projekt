@@ -101,14 +101,14 @@ def collectingSamples(userID, time, device, start):
         start_time = time
         if not start_measure.is_set(): #start =1, end = 0
             start_measure.set()
-        return "measuring"
+        return json.dumps({"measuring": 1 })
     else:
         end_time=time
         start_measure.clear()
         print(values)
         print(len(values))
         sum = calculateConsumption(values,start_time, end_time)
-        return "calculated" + str(sum)
+        return json.dumps({"calculated": sum })
 
 def calculateConsumption(values, start_time, end_time):
     sum_consumption = 0
