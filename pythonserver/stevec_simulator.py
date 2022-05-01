@@ -6,7 +6,7 @@ def simulate(func):
     while True:
         #logika za simuliranje števca
         x = random.gauss(40,10)
-        time.sleep(1)
+        time.sleep(10)
         func(x)
         
 
