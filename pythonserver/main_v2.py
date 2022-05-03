@@ -99,7 +99,6 @@ def runmqtt():
 
 def runserver():
     db.create_all()
-    user=users(calculating=False,id=" ",starttime=0,endtime=0,loudness=0,device=0,totalConsumption=0)
     app.run(host='0.0.0.0', port=8080)
 
 start_time = 0
@@ -111,13 +110,16 @@ def calculateConsumption(user_id):
     user= users.query.filter_by(id=user_id).first()
     start_time=user.starttime
     end_time=user.endtime
-    loudness=user.loudness
+    otheruser=users.query.filter(users.id!=user_id,users.calculating==True,users.device==user.device,users.loudness>user.loudness).first()
+    print(otheruser)
+    if otheruser !=None:
+        return 0
     usage=0
     for key,val in stevec_values.items():
         if int(float(key))<=end_time and int(float(key))>=start_time:
             usage+=val
     usage=usage/360
-    return  usage
+    return usage
 
 
 
@@ -130,8 +132,8 @@ def measurement():
     start = request_json.get('start')
     device = request_json.get('device')
     time = request_json.get('time')
-    print(user_id, start, device, time)
-    loudness=0
+    loudness=request_json.get('loudness')
+    print(user_id, start, device, time,loudness)
     datatosend=""
 
     user= users.query.get(user_id)
