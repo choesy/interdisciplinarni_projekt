@@ -1,16 +1,17 @@
 # python3.6
 from datetime import datetime
 from re import sub
-import struct
 from threading import Event, Thread
 from flask import Flask, request
 from paho.mqtt import client as mqtt_client
 from stevec_simulator import simulate
 import json
-from dataclasses import dataclass
 import sys
-app = Flask(__name__)
+from flask_sqlalchemy import SQLAlchemy
 
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
+db = SQLAlchemy(app)
 broker = 'rlab.lucami.org'
 port = 1883
 topic = "eCheck/powerMeterP1"
@@ -21,16 +22,26 @@ password = 'lucami2021'
 test=1
 
 MAX_VALUES_LENGTH=60
-@dataclass
-class User:
-    calculating:bool
-    starttime:int
-    endtime:int
-    device: str
-    totalConsumption:float=0
-    loudness:int=0
+class users(db.Model):
+    id = db.Column(db.String(10), primary_key = True)
+    calculating=db.Column(db.Boolean)
+    starttime=db.Column(db.Integer)
+    endtime=db.Column(db.Integer)
+    device=db.Column(db.String(10))
+    totalConsumption=db.Column(db.Integer)
+    loudness=db.Column(db.Integer)
+    def __repr__(self):
+        return f"users('{self.id}','{self.calculating}','{self.starttime}','{self.endtime}','{self.loudness}','{self.device}','{self.totalConsumption}')"
 
-users={}
+    # def __init__(self, id,calculating,starttime,endtime,device,totalConsumption,loudness):
+    #     self.id = id
+    #     self.calculating = calculating
+    #     self.starttime = starttime
+    #     self.endtime = endtime
+    #     self.device = device
+    #     self.totalConsumption = totalConsumption
+    #     self.loudness = loudness
+
 stevec_values={}
 def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, rc):
@@ -87,18 +98,20 @@ def runmqtt():
     
 
 def runserver():
-    app.run(host='0.0.0.0', port=8080
-    )
+    db.create_all()
+    user=users(calculating=False,id=" ",starttime=0,endtime=0,loudness=0,device=0,totalConsumption=0)
+    app.run(host='0.0.0.0', port=8080)
 
 start_time = 0
 end_time = 0
 
 
 def calculateConsumption(user_id):
-    global stevec_values,users
-    start_time=users[user_id].starttime
-    end_time=users[user_id].endtime
-    loudness=users[user_id].loudness
+    global stevec_values
+    user= users.query.filter_by(id=user_id).first()
+    start_time=user.starttime
+    end_time=user.endtime
+    loudness=user.loudness
     usage=0
     for key,val in stevec_values.items():
         if int(float(key))<=end_time and int(float(key))>=start_time:
@@ -110,7 +123,6 @@ def calculateConsumption(user_id):
 
 @app.route('/',methods=['POST'])
 def measurement():
-    global users
     print("hello")
     request_json = request.get_json()
     # look for how to get data
@@ -121,37 +133,41 @@ def measurement():
     print(user_id, start, device, time)
     loudness=0
     datatosend=""
+
+    user= users.query.get(user_id)
+    print("USER: ", user)
     if start:
-        if user_id in users:
-            if users[user_id].calculating:
+        if user:
+            if user.calculating:
                 datatosend = json.dumps({"status": "already calculating" })
-                users[user_id].loudness=loudness
-                users[user_id].device=device
+                user.loudness=loudness
+                user.device=device
             else:
-                users[user_id].calculating=True
-                users[user_id].loudness=loudness
-                users[user_id].device=device
-                users[user_id].starttime=int(datetime.now().timestamp())
-                users[user_id].endtime=None
+                user.calculating=True
+                user.loudness=loudness
+                user.device=device
+                user.starttime=int(datetime.now().timestamp())
+                user.endtime=0
                 datatosend = json.dumps({"measurment": 1 })
         else:
             datatosend = json.dumps({"measurment": 1 })
-            users[user_id]=User(calculating=True,starttime=int(datetime.now().timestamp()),endtime=None,loudness=loudness,device=device)
+            user=users(calculating=True,id=user_id,starttime=int(datetime.now().timestamp()),endtime=0,loudness=loudness,device=device,totalConsumption=0)
+            db.session.add(user)   
     else:
-        if user_id in users:
-                if users[user_id].calculating:
-                    users[user_id].calculating=False
-                    users[user_id].device=device
-                    users[user_id].currentLoudness=0
-                    users[user_id].endtime=int(datetime.now().timestamp())
-                    consumed=calculateConsumption(user_id)
-                    users[user_id].totalConsumption+=consumed
-                    datatosend=json.dumps({"calculated": consumed })
-                else:
-                    datatosend = json.dumps({"calculated": "you need to start initialise calculating first" })
+        if user:
+            if user.calculating:
+                user.calculating=False
+                user.device=device
+                user.currentLoudness=0
+                user.endtime=int(datetime.now().timestamp())
+                consumed=calculateConsumption(user_id)
+                user.totalConsumption+=consumed
+                datatosend=json.dumps({"calculated": consumed })
+            else:
+                datatosend = json.dumps({"calculated": "you need to start initialise calculating first" })
         else:
             datatosend = json.dumps({"calculated": "you need to start initialise calculating first" })
-    print(users)
+    db.session.commit()
     return datatosend
 
 
