@@ -3,11 +3,11 @@ import requests
 from datetime import datetime
 import json
 # api-endpoint
-URL = "http://localhost:8080/"
+URL = "http://130.162.44.178:8080/"
   
 # location given here
 user_id ="3"
-start = False
+start = True
 loudness=10000
 device = "aaa"
 time = int(datetime.timestamp(datetime.now()))
