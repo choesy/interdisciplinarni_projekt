@@ -24,12 +24,14 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.SimpleAdapter;
 import android.widget.TextView;
@@ -46,8 +48,10 @@ import com.android.volley.toolbox.Volley;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.UUID;
 
@@ -67,19 +71,30 @@ public class MainActivity extends AppCompatActivity {
     public static final UUID clientCharConfigUUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
     /* HTTP REQUESTS */
-    private final String BASE_URL = "http://192.168.1.6:8080";  // CHANGE THIS TO SERVER IP!
-    private static String prevRecognizedDevice = "";
-    private int sumConsumption = 0;
+    String userId = UUID.randomUUID().toString();
+    private final String BASE_URL = "http://192.168.8.102:8080";  // CHANGE THIS TO SERVER IP!
+    //private final String BASE_URL = "http://130.162.44.178:8080";  // deployed server ip
+    private String DETECTING_DEVICE = "fen";
+    private final int bufferLength = 3;
+    private String[] lastFewReadings = new String[bufferLength]; // ["fen", "fen", "fen"] --> for removing outliers to send "fen"
+    private float sumConsumption = 0;
+    private float addMockConsumption = 0.67f;// Mocks consumption of 1 second of running hairdryer (W)
 
     /** Views (UI) **/
+    TextView stateBluetoothLabelV;
     TextView stateBluetoothV;
+    TextView bluetoothDataLabelV;
     TextView bluetoothDevicesLabelV;
     TextView bluetoothDataV;
     Button pairButton;
     VideoView videoView;
+    ListView deviceListV;
     TextView consumption;
     TextView consumptionNumber;
     TextView serverStatus;
+    TextView userLabelV;
+    TextView userIdV;
+    ImageView hairdryerIcon;
 
     /** Permissions **/
     String[] permissions = new String[]{
@@ -99,14 +114,19 @@ public class MainActivity extends AppCompatActivity {
 
         // Views
         stateBluetoothV = findViewById(R.id.bluetooth_state);
+        stateBluetoothLabelV = findViewById(R.id.bluetooth_state_label);
         bluetoothDevicesLabelV = findViewById(R.id.bluetooth_devices_label);
         bluetoothDataV = findViewById(R.id.bluetooth_data);
-        ListView deviceListV = findViewById(R.id.device_list);
+        deviceListV = findViewById(R.id.device_list);
         videoView = findViewById(R.id.videoView);
-        pairButton = findViewById(R.id.pair_button);
+        //pairButton = findViewById(R.id.pair_button);
         consumption = findViewById(R.id.consumption); consumption.setVisibility(View.INVISIBLE); consumption.setText("Consumption");
         consumptionNumber = findViewById(R.id.consumption_number); consumptionNumber.setVisibility(View.INVISIBLE); consumptionNumber.setText("0wh");
-        serverStatus = findViewById(R.id.server_status); serverStatus.setVisibility(View.INVISIBLE); serverStatus.setText("{}");
+        serverStatus = findViewById(R.id.server_status); serverStatus.setVisibility(View.INVISIBLE); serverStatus.setText("");
+        userLabelV = findViewById(R.id.user_label);
+        userIdV = findViewById(R.id.userId); userIdV.setText(userId);
+        hairdryerIcon = findViewById(R.id.imageView); hairdryerIcon.setImageResource(R.drawable.hairdryer);hairdryerIcon.setVisibility(View.INVISIBLE);
+        bluetoothDataLabelV = findViewById(R.id.bluetooth_data_label);
 
         // Init
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -127,7 +147,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         consumption.setOnClickListener((l)-> {
-            requestData("blender");
+            requestData(DETECTING_DEVICE, 1000);
         });
     }
 
@@ -329,7 +349,7 @@ public class MainActivity extends AppCompatActivity {
 
                         showToast("Connected."); stateBluetoothV.post(() -> stateBluetoothV.setText("Connected."));  // Update UI
                         videoView.post(() -> videoView.setVisibility(View.GONE));
-                        pairButton.post(() -> pairButton.setVisibility(View.GONE));
+                        //pairButton.post(() -> pairButton.setVisibility(View.GONE));
                         consumption.post(() -> consumption.setVisibility(View.VISIBLE));
                         consumptionNumber.post(() -> consumptionNumber.setVisibility(View.VISIBLE));
                         serverStatus.post(() -> serverStatus.setVisibility(View.VISIBLE));
@@ -361,7 +381,7 @@ public class MainActivity extends AppCompatActivity {
             String s = new String(characteristic.getValue(), StandardCharsets.UTF_8);
             displayData(s);
             String[] parsed = s.split(" ");
-            requestData(parsed[0]);
+            requestData(parsed[0],  Integer.parseInt(parsed[1]));
         }
 
         public void displayData(String data){
@@ -399,6 +419,9 @@ public class MainActivity extends AppCompatActivity {
     {
         runOnUiThread(() -> Toast.makeText(MainActivity.this, toast, Toast.LENGTH_SHORT).show());
     }
+    public static float round(float d, int decimalPlace) {
+        return BigDecimal.valueOf(d).setScale(decimalPlace,BigDecimal.ROUND_HALF_UP).floatValue();
+    }
 
 
     /** Permissions **/
@@ -429,27 +452,26 @@ public class MainActivity extends AppCompatActivity {
 
 
     /** HTTP REQUEST GET/POST**/
-    private void requestData(String device) {
+    boolean stopOrStartSavingMeasurementsOnServer = false; // 0 (returns consumption) or 1 (start)
+    private void requestData(String device, int loudness) {
+        addDeviceToLastFewReadings(device);
+        //Log.d("DEBUG", Arrays.toString(lastFewReadings));
+        if(isAllEqual(lastFewReadings) && lastFewReadings[0].equals(DETECTING_DEVICE)) {
+            // ["fen","fen","fen"]
+            stopOrStartSavingMeasurementsOnServer = true; // start saving if last 3 readings where the same
 
-        // Send on change
-        if(device.equals(prevRecognizedDevice)) {
-            return;
         }
-        int stopOrStartSavingMeasurementsOnServer = 0;//0 (returns consumption) or 1 (start)
-        if (device.equals("blender") && prevRecognizedDevice.equals("tisina")) {
-            stopOrStartSavingMeasurementsOnServer = 1; // start saving
-        }
-        if (device.equals("tisina") && prevRecognizedDevice.equals("blender")) {
-            stopOrStartSavingMeasurementsOnServer = 0; // stop saving - gets response
+        if(isAllEqual(lastFewReadings) && lastFewReadings[0].equals("tisina")) {
+            stopOrStartSavingMeasurementsOnServer = false; // stop saving
         }
 
-        prevRecognizedDevice = device;
+
         Long timestamp = (System.currentTimeMillis()/1000);
         JSONObject payload = new JSONObject();
         try {
-            payload.put("userID", "test_4");
-            payload.put("time", timestamp);
-            payload.put("device", "blender");
+            payload.put("userID", userId);
+            payload.put("loudness", loudness);
+            payload.put("device", device);
             payload.put("start", stopOrStartSavingMeasurementsOnServer);
         } catch (JSONException e) {
             Log.e("ERROR", e.toString());
@@ -461,12 +483,37 @@ public class MainActivity extends AppCompatActivity {
                 new Response.Listener<JSONObject>() {
                     @Override
                     public void onResponse(JSONObject response) {
-                        Log.d("DEBUG", "RESPONSE: " + response.toString());
-                        serverStatus.setText(response.toString());
-                        if (response.has("calculated")){
+                        //Log.d("DEBUG", "RESPONSE: " + response.toString());
+                        if (response.has("calculation") && response.has("measurment")){
                             try {
-                                sumConsumption += response.getInt("calculated");
-                                consumptionNumber.setText(sumConsumption + "Wh");
+                                if (response.getInt("measurment") == 0) {
+                                    String capDevice = DETECTING_DEVICE.substring(0, 1).toUpperCase() + DETECTING_DEVICE.substring(1);
+
+                                    // FINISHED RESPSONSE
+                                    int receivedConsumption = response.getInt("calculation");
+                                    sumConsumption += receivedConsumption;
+                                    /* Mock implementation - delete later */
+                                    if(receivedConsumption == 0){
+                                        sumConsumption += addMockConsumption;
+                                    }
+
+                                    sumConsumption = round(sumConsumption, 2);
+                                    consumptionNumber.setText(sumConsumption + "Wh");
+
+                                    Log.d("DEBUG", "receivedConsumption: " + receivedConsumption);
+                                    serverStatus.setText("Hairdryer");
+                                    hairdryerIcon.setVisibility(View.VISIBLE);
+
+
+                                    /*toast*/
+                                    if(receivedConsumption>0){
+                                        showToast(capDevice + " consumed " + receivedConsumption);
+                                    }
+                                }
+                                else {
+                                    serverStatus.setText("");
+                                    hairdryerIcon.setVisibility(View.INVISIBLE);
+                                }
                             } catch (JSONException e) {
                                 e.printStackTrace();
                             }
@@ -485,6 +532,48 @@ public class MainActivity extends AppCompatActivity {
         RequestQueue requestQueue = Volley.newRequestQueue(MainActivity.this);
         requestQueue.add(jsonObjectRequest);
     }
+
+    /* BUFFER BEFORE SENDING REQUEST */
+    // Buffer type ["device", "device", "device"]
+    private int indexReadings = 0;
+    private void addDeviceToLastFewReadings(String device) {
+        lastFewReadings[indexReadings] = device;
+
+        indexReadings++;
+        if (indexReadings == bufferLength) {
+            indexReadings = 0;
+        }
+    }
+    public static boolean isAllEqual(String[] a){
+        for(int i=1; i<a.length; i++){
+            if(!a[0].equals(a[i])){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public void onDetailButtonClick(View view) {
+        toggleVisibiltyOfDetailData();
+    }
+
+    private void toggleVisibiltyOfDetailData() {
+        toggleView(stateBluetoothV);
+        toggleView(bluetoothDevicesLabelV);
+        toggleView(stateBluetoothLabelV);
+        toggleView(bluetoothDataV);
+        toggleView(bluetoothDataLabelV);
+        toggleView(userLabelV);
+        toggleView(userIdV);
+        toggleView(deviceListV);
+    }
+    public void toggleView(View view){
+        if(view.getVisibility()==View.INVISIBLE)
+            view.setVisibility(View.VISIBLE);
+        else if(view.getVisibility()==View.VISIBLE)
+            view.setVisibility(View.INVISIBLE);
+    }
+
 }
 
 
