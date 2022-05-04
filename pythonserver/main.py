@@ -16,7 +16,7 @@ topic = "eCheck/powerMeterP1"
 client_id = "test_4"
 username = 'lucmqtt'
 password = 'lucami2021'
-test=1
+test=0
 
 def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, rc):
