@@ -1,4 +1,4 @@
-# python3.6
+
 from datetime import datetime
 from re import sub
 from threading import Event, Thread
@@ -128,12 +128,11 @@ def measurement():
     print("hello")
     request_json = request.get_json()
     # look for how to get data
-    user_id = request_json.get('userID')
-    start = request_json.get('start')
-    device = request_json.get('device')
-    time = request_json.get('time')
-    loudness=request_json.get('loudness')
-    print(user_id, start, device, time,loudness)
+    user_id = request_json.get('userID')#string
+    start = request_json.get('start')#boool
+    device = request_json.get('device')#string
+    loudness=request_json.get('loudness')#int
+    print(user_id, start, device,loudness)
     datatosend=""
 
     user= users.query.get(user_id)
@@ -141,7 +140,7 @@ def measurement():
     if start:
         if user:
             if user.calculating:
-                datatosend = json.dumps({"status": "already calculating" })
+                datatosend = json.dumps({"measurment": 0,"calculation":0 })
                 user.loudness=loudness
                 user.device=device
             else:
@@ -150,9 +149,9 @@ def measurement():
                 user.device=device
                 user.starttime=int(datetime.now().timestamp())
                 user.endtime=0
-                datatosend = json.dumps({"measurment": 1 })
+                datatosend = json.dumps({"measurment": 1,"calculation":0})
         else:
-            datatosend = json.dumps({"measurment": 1 })
+            datatosend = json.dumps({"measurment": 1 ,"calculation":0})
             user=users(calculating=True,id=user_id,starttime=int(datetime.now().timestamp()),endtime=0,loudness=loudness,device=device,totalConsumption=0)
             db.session.add(user)   
     else:
@@ -164,11 +163,11 @@ def measurement():
                 user.endtime=int(datetime.now().timestamp())
                 consumed=calculateConsumption(user_id)
                 user.totalConsumption+=consumed
-                datatosend=json.dumps({"calculated": consumed })
+                datatosend=json.dumps({"measurment":0,"calculation": consumed })
             else:
-                datatosend = json.dumps({"calculated": "you need to start initialise calculating first" })
+                datatosend = json.dumps({"measurment": 2 ,"calculation":0})
         else:
-            datatosend = json.dumps({"calculated": "you need to start initialise calculating first" })
+            datatosend = json.dumps({"measurment":2,"calculation": 0 })
     db.session.commit()
     return datatosend
 
