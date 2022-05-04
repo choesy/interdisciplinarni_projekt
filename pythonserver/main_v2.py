@@ -19,7 +19,7 @@ topic = "eCheck/powerMeterP1"
 client_id = "test_4"
 username = 'lucmqtt'
 password = 'lucami2021'
-test=1
+test=0
 
 MAX_VALUES_LENGTH=60
 class users(db.Model):

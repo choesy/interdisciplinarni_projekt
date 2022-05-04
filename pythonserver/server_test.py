@@ -7,7 +7,7 @@ URL = "http://130.162.44.178:8080/"
   
 # location given here
 user_id ="3"
-start = True
+start = False
 loudness=10000
 device = "aaa"
 time = int(datetime.timestamp(datetime.now()))
