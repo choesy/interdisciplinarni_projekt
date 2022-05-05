@@ -3,12 +3,12 @@ import requests
 from datetime import datetime
 import json
 # api-endpoint
-URL = "http://130.162.44.178:8080/"
-  
+#URL = "http://130.162.44.178:8080/"
+URL="http://localhost:8080/"
 # location given here
-user_id ="3"
+user_id ="2"
 start = False
-loudness=10000
+loudness=1000
 device = "aaa"
 time = int(datetime.timestamp(datetime.now()))
 # defining a params dict for the parameters to be sent to the API

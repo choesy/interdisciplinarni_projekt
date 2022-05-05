@@ -1,4 +1,4 @@
-# python3.6
+
 from datetime import datetime
 from re import sub
 from threading import Event, Thread
@@ -7,8 +7,12 @@ from paho.mqtt import client as mqtt_client
 from stevec_simulator import simulate
 import json
 import sys
-app = Flask(__name__)
+from flask_sqlalchemy import SQLAlchemy
 
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 broker = 'rlab.lucami.org'
 port = 1883
 topic = "eCheck/powerMeterP1"
@@ -18,6 +22,19 @@ username = 'lucmqtt'
 password = 'lucami2021'
 test=0
 
+MAX_VALUES_LENGTH=60
+class users(db.Model):
+    id = db.Column(db.String(10), primary_key = True)
+    calculating=db.Column(db.Boolean)
+    starttime=db.Column(db.Integer)
+    endtime=db.Column(db.Integer)
+    device=db.Column(db.String(10))
+    totalConsumption=db.Column(db.Float)
+    loudness=db.Column(db.Integer)
+    def __repr__(self):
+        return f"users('{self.id}','{self.calculating}','{self.starttime}','{self.endtime}','{self.loudness}','{self.device}','{self.totalConsumption}')"
+
+stevec_values={}
 def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, rc):
         if rc == 0:
@@ -31,48 +48,37 @@ def connect_mqtt() -> mqtt_client:
     client.connect(broker, port)
     return client
 
-l = [] #list of values
-start_measure = Event()
-values = []
 
 def on_test_message(msg):
         #print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
-        global l, values
-        x = {
-            "value":int(msg) ,
-            "time": datetime.now().timestamp()
-        }
-        #save samples to array of length of 10 min ?
-        print(x["value"])
-        l.append(x)   #add measurement to list
-        values.append(x)
-        if len(values) > 3:
-            values = values[-3:]
-        if start_measure.is_set():
-            values.append(l[-1])
-            print("adding to values")
-        l = l[-30:]    #redefine list as last 5 min
-
+        global stevec_values
+        print(msg)
+        time=int(datetime.now().timestamp())
+        mintime=int(datetime.now().timestamp())
+        if len(stevec_values)>=MAX_VALUES_LENGTH:
+            for key,value in stevec_values.items():
+                if int(float(key))<mintime:
+                    mintime=int(key)
+            del stevec_values[str(mintime)]
+        stevec_values[str(time)]=int(float(msg))
+        calculateConsumption()
 
 def subscribe(client: mqtt_client):
     def on_message(client, userdata, msg):
         #print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
-        global l, values
-        value=json.loads(msg.payload.decode())
-        x = {
-            "value":int(value["actual_consumption"]) ,
-            "time": datetime.now().timestamp()
-        }
-        #save samples to array of length of 10 min ?
-        print(x["value"])
-        l.append(x)   #add measurement to list
-        values.append(x)
-        if len(values) > 3:
-            values = values[-3:]
-        if start_measure.is_set():
-            values.append(l[-1])
-            print("adding to values")
-        l = l[-30:]    #redefine list as last 5 min
+        global stevec_values
+        msg_value=json.loads(msg.payload.decode())
+        print(msg_value["actual_consumption"])
+        time=int(datetime.now().timestamp())
+        mintime=int(datetime.now().timestamp())
+        if len(stevec_values)>=MAX_VALUES_LENGTH:
+            for key,value in stevec_values.items():
+                if int(float(key))<mintime:
+                    mintime=int(key)
+            del stevec_values[str(mintime)]
+        stevec_values[str(time)]=int(float(msg_value["actual_consumption"]))
+        calculateConsumption()
+
 
 
 
@@ -86,42 +92,30 @@ def runmqtt():
     
 
 def runserver():
+    db.create_all()
+    db.session.query(users).delete()
+    db.session.commit()
     app.run(host='0.0.0.0', port=8080)
 
 start_time = 0
 end_time = 0
 
-def collectingSamples(userID, time, device, start):
-    #start collecting samples, gets called with api call, last minute and counting untill another api call, alghoritm for recognizing
-    # max value and min
-    print("collecting samples")
-    global start_time, end_time
-    userConsumption = 0
-    if start:
-        start_time = time
-        if not start_measure.is_set(): #start =1, end = 0
-            start_measure.set()
-        return json.dumps({"measuring": 1 })
-    else:
-        end_time=time
-        start_measure.clear()
-        print(values)
-        print(len(values))
-        sum = calculateConsumption(values,start_time, end_time)
-        return json.dumps({"calculated": sum })
 
-def calculateConsumption(values, start_time, end_time):
-    sum_consumption = 0
-    measurements_list = [measure["value"] for measure in values]
+def calculateConsumption():
+    global stevec_values
+    lastkey=sorted(stevec_values.keys())[-1]
+    lastval=stevec_values[lastkey]
+    print(lastkey)
+    if lastval>0.5:
+        allusers= users.query.all()
+        if allusers == None:
+            return 0
+        for user in allusers:
+            otheruser=users.query.filter(users.id!=user.id,users.calculating==True,users.device==user.device,users.loudness>user.loudness).first()
+            if otheruser==None:
+                user.totalConsumption+=lastval/360
+        db.session.commit()
 
-    min_measure = min(measurements_list)
-    print(min_measure)
-    for measurement1 in values:
-        if measurement1["time"] > start_time:
-            if measurement1["time"] < end_time:
-                print("is bigger than " + str(start_time))
-                sum_consumption += 1/360 * (measurement1["value"] - min_measure)
-    return sum_consumption
 
 
 
@@ -130,13 +124,46 @@ def measurement():
     print("hello")
     request_json = request.get_json()
     # look for how to get data
-    user_id = request_json.get('userID')
-    start = request_json.get('start')
-    device = request_json.get('device')
-    time = request_json.get('time')
-    print(user_id, start, device, time)
+    user_id = request_json.get('userID')#string
+    start = request_json.get('start')#boool
+    device = request_json.get('device')#string
+    loudness=request_json.get('loudness')#int
+    print(user_id, start, device,loudness)
+    datatosend=""
 
-    return collectingSamples(user_id,time,device,start)
+    user= users.query.get(user_id)
+    print("USER: ", user)
+    if start:
+        if user:
+            if user.calculating:
+                datatosend = json.dumps({"measurment": 1,"calculation":user.totalConsumption })
+                user.loudness=loudness
+                user.device=device
+            else:
+                user.calculating=True
+                user.loudness=loudness
+                user.device=device
+                user.starttime=int(datetime.now().timestamp())
+                user.endtime=0
+                datatosend = json.dumps({"measurment": 2,"calculation":user.totalConsumption})
+        else:
+            datatosend = json.dumps({"measurment": 3 ,"calculation":0})
+            user=users(calculating=True,id=user_id,starttime=int(datetime.now().timestamp()),endtime=0,loudness=loudness,device=device,totalConsumption=0)
+            db.session.add(user)   
+    else:
+        if user:
+            if user.calculating:
+                user.calculating=False
+                user.device=device
+                user.currentLoudness=0
+                user.endtime=int(datetime.now().timestamp())
+                datatosend=json.dumps({"measurment":4,"calculation": user.totalConsumption})
+            else:
+                datatosend = json.dumps({"measurment": 5 ,"calculation":user.totalConsumption})
+        else:
+            datatosend = json.dumps({"measurment":3,"calculation": 0 })
+    db.session.commit()
+    return datatosend
 
 
 if __name__ == '__main__':
