@@ -1,3 +1,3 @@
-*.db
-*.out
+pythonserver/*.db
+pythonserver/*.out
 pythonserver/__pycache__/*
