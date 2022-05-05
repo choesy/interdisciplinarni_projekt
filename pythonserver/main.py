@@ -65,7 +65,6 @@ def on_test_message(msg):
 
 def subscribe(client: mqtt_client):
     def on_message(client, userdata, msg):
-        #print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
         global stevec_values
         msg_value=json.loads(msg.payload.decode())
         print(msg_value["actual_consumption"])
@@ -105,7 +104,6 @@ def calculateConsumption():
     global stevec_values
     lastkey=sorted(stevec_values.keys())[-1]
     lastval=stevec_values[lastkey]
-    print(lastkey)
     if lastval>0.5:
         allusers= users.query.all()
         if allusers == None:
