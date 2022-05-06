@@ -2,12 +2,13 @@
 from datetime import datetime
 from re import sub
 from threading import Event, Thread
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 from paho.mqtt import client as mqtt_client
 from stevec_simulator import simulate
 import json
 import sys
 from flask_sqlalchemy import SQLAlchemy
+import random
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
@@ -17,10 +18,13 @@ broker = 'rlab.lucami.org'
 port = 1883
 topic = "eCheck/powerMeterP1"
 # generate client ID with pub prefix randomly
-client_id = "test_4"
+client_id = str(random.getrandbits(128))
 username = 'lucmqtt'
 password = 'lucami2021'
 test=0
+print(sys.argv)
+if len(sys.argv)>1:
+    test=1
 
 MAX_VALUES_LENGTH=60
 class users(db.Model):
@@ -67,7 +71,7 @@ def subscribe(client: mqtt_client):
     def on_message(client, userdata, msg):
         global stevec_values
         msg_value=json.loads(msg.payload.decode())
-        print(msg_value["actual_consumption"])
+        #print(msg_value["actual_consumption"])
         time=int(datetime.now().timestamp())
         mintime=int(datetime.now().timestamp())
         if len(stevec_values)>=MAX_VALUES_LENGTH:
@@ -109,59 +113,69 @@ def calculateConsumption():
         if allusers == None:
             return 0
         for user in allusers:
-            otheruser=users.query.filter(users.id!=user.id,users.calculating==True,users.device==user.device,users.loudness>user.loudness).first()
-            if otheruser==None:
-                user.totalConsumption+=lastval/360
+            if user.calculating==True:
+                otheruser=users.query.filter(users.id!=user.id,users.calculating==True,users.device==user.device,users.loudness>user.loudness).first()
+                if otheruser==None:
+                    user.totalConsumption+=lastval/360
         db.session.commit()
 
 
+@app.route('/data',methods=['GET'])
+def getdata():
+    allusers= users.query.all()
+    out={u.id:"{:.2f}".format(u.totalConsumption) for u in allusers}
+    return json.dumps(out)
 
 
-@app.route('/',methods=['POST'])
+
+@app.route('/',methods=['POST','GET'])
 def measurement():
-    print("hello")
-    request_json = request.get_json()
-    # look for how to get data
-    user_id = request_json.get('userID')#string
-    start = request_json.get('start')#boool
-    device = request_json.get('device')#string
-    loudness=request_json.get('loudness')#int
-    print(user_id, start, device,loudness)
-    datatosend=""
+    if request.method == 'POST':
+        print("hello")
+        request_json = request.get_json()
+        # look for how to get data
+        user_id = request_json.get('userID')#string
+        start = request_json.get('start')#boool
+        device = request_json.get('device')#string
+        loudness=request_json.get('loudness')#int
+        print(user_id, start, device,loudness)
+        datatosend=""
 
-    user= users.query.get(user_id)
-    print("USER: ", user)
-    if start:
-        if user:
-            if user.calculating:
-                datatosend = json.dumps({"measurment": 1,"calculation":user.totalConsumption })
-                user.loudness=loudness
-                user.device=device
+        user= users.query.get(user_id)
+        print("USER: ", user)
+        if start:
+            if user:
+                if user.calculating:
+                    datatosend = json.dumps({"measurment": 1,"calculation":user.totalConsumption })
+                    user.loudness=loudness
+                    user.device=device
+                else:
+                    user.calculating=True
+                    user.loudness=loudness
+                    user.device=device
+                    user.starttime=int(datetime.now().timestamp())
+                    user.endtime=0
+                    datatosend = json.dumps({"measurment": 2,"calculation":user.totalConsumption})
             else:
-                user.calculating=True
-                user.loudness=loudness
-                user.device=device
-                user.starttime=int(datetime.now().timestamp())
-                user.endtime=0
-                datatosend = json.dumps({"measurment": 2,"calculation":user.totalConsumption})
+                datatosend = json.dumps({"measurment": 3 ,"calculation":0})
+                user=users(calculating=True,id=user_id,starttime=int(datetime.now().timestamp()),endtime=0,loudness=loudness,device=device,totalConsumption=0)
+                db.session.add(user)   
         else:
-            datatosend = json.dumps({"measurment": 3 ,"calculation":0})
-            user=users(calculating=True,id=user_id,starttime=int(datetime.now().timestamp()),endtime=0,loudness=loudness,device=device,totalConsumption=0)
-            db.session.add(user)   
+            if user:
+                if user.calculating:
+                    user.calculating=False
+                    user.device=device
+                    user.currentLoudness=0
+                    user.endtime=int(datetime.now().timestamp())
+                    datatosend=json.dumps({"measurment":4,"calculation": user.totalConsumption})
+                else:
+                    datatosend = json.dumps({"measurment": 5 ,"calculation":user.totalConsumption})
+            else:
+                datatosend = json.dumps({"measurment":3,"calculation": 0 })
+        db.session.commit()
+        return datatosend
     else:
-        if user:
-            if user.calculating:
-                user.calculating=False
-                user.device=device
-                user.currentLoudness=0
-                user.endtime=int(datetime.now().timestamp())
-                datatosend=json.dumps({"measurment":4,"calculation": user.totalConsumption})
-            else:
-                datatosend = json.dumps({"measurment": 5 ,"calculation":user.totalConsumption})
-        else:
-            datatosend = json.dumps({"measurment":3,"calculation": 0 })
-    db.session.commit()
-    return datatosend
+        return send_from_directory('static', "index.html")
 
 
 if __name__ == '__main__':
