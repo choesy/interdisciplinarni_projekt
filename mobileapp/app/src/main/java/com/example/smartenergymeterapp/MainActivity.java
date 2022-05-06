@@ -72,9 +72,10 @@ public class MainActivity extends AppCompatActivity {
 
     /* HTTP REQUESTS */
     String userId = UUID.randomUUID().toString();
-    private final String BASE_URL = "http://192.168.8.102:8080";  // CHANGE THIS TO SERVER IP!
+    private final String BASE_URL = "http://192.168.8.105:8080";  // CHANGE THIS TO SERVER IP!
     //private final String BASE_URL = "http://130.162.44.178:8080";  // deployed server ip
     private String DETECTING_DEVICE = "fen";
+    private String capDevice = DETECTING_DEVICE.substring(0, 1).toUpperCase() + DETECTING_DEVICE.substring(1);
     private final int bufferLength = 3;
     private String[] lastFewReadings = new String[bufferLength]; // ["fen", "fen", "fen"] --> for removing outliers to send "fen"
     private float sumConsumption = 0;
@@ -483,33 +484,36 @@ public class MainActivity extends AppCompatActivity {
                 new Response.Listener<JSONObject>() {
                     @Override
                     public void onResponse(JSONObject response) {
-                        //Log.d("DEBUG", "RESPONSE: " + response.toString());
+                        Log.d("DEBUG", "RESPONSE: " + response.toString());
                         if (response.has("calculation") && response.has("measurment")){
                             try {
-                                if (response.getInt("measurment") == 0) {
-                                    String capDevice = DETECTING_DEVICE.substring(0, 1).toUpperCase() + DETECTING_DEVICE.substring(1);
+                                int responseMeasurement = response.getInt("measurment");
 
-                                    // FINISHED RESPSONSE
-                                    int receivedConsumption = response.getInt("calculation");
-                                    sumConsumption += receivedConsumption;
-                                    /* Mock implementation - delete later */
-                                    if(receivedConsumption == 0){
-                                        sumConsumption += addMockConsumption;
-                                    }
-
+                                /* MOCK ADDING CONSUMPTION*/
+                                if (responseMeasurement == 4 || responseMeasurement == 1) { // 4-finished, 1-collecting
+                                    //int receivedConsumption = response.getInt("calculation");
+                                    //sumConsumption += receivedConsumption;
+                                    sumConsumption += addMockConsumption;
                                     sumConsumption = round(sumConsumption, 2);
-                                    consumptionNumber.setText(sumConsumption + "Wh");
 
-                                    Log.d("DEBUG", "receivedConsumption: " + receivedConsumption);
+                                    // Display
+                                    consumptionNumber.setText(sumConsumption + "Wh");
+                                    serverStatus.setText("Hairdryer");
+                                    hairdryerIcon.setVisibility(View.VISIBLE);
+                                }
+                                /* REAL RECEIVED CONSUMPTION*/
+                                /*if (responseMeasurement == 4 || responseMeasurement == 1) {
+                                    int receivedConsumption = response.getInt("calculation");
+                                    sumConsumption = receivedConsumption;
+
+                                    // Display
+                                    consumptionNumber.setText(sumConsumption + "Wh");
                                     serverStatus.setText("Hairdryer");
                                     hairdryerIcon.setVisibility(View.VISIBLE);
 
+                                    Log.d("DEBUG", "receivedConsumption: " + receivedConsumption);
+                                }*/
 
-                                    /*toast*/
-                                    if(receivedConsumption>0){
-                                        showToast(capDevice + " consumed " + receivedConsumption);
-                                    }
-                                }
                                 else {
                                     serverStatus.setText("");
                                     hairdryerIcon.setVisibility(View.INVISIBLE);
