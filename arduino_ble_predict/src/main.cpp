@@ -61,6 +61,9 @@ static inference_t inference;
 static signed short sampleBuffer[2048];
 static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
 #define BLE_UUID_SERVICE                    "23937b16-acc8-11eb-8529-0242ac130003"
+//#define BLE_UUID_SERVICE                    "2a62e9f4-cd4c-11ec-9d64-0242ac120002"
+
+
 #define BLE_UUID_STRING_CHARACTERISTIC      "1A3AC131-31EF-758B-BC51-54A61958EF82"
 
 BLEService bleService(BLE_UUID_SERVICE);
@@ -81,7 +84,8 @@ void initializeBLEConnection() {
     while (1);
   }
 
-  BLE.setLocalName("Nano33BLE");  // Set name for connection
+  BLE.setLocalName("Monika");  // Set name for connection
+//BLE.setLocalName("Tim");  // Set name for connection
   BLE.setAdvertisedService(bleService); // Advertise service
   bleService.addCharacteristic(bleStringCharacteristic); // Add characteristic to service
   BLE.addService(bleService); // Add service
