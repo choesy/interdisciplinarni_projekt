@@ -1,1 +1,0 @@
-MQTT za števec elektrike smo spremenili, sedaj se vsi podatki pošiljajo znotraj enega topica (topic name: "eCheck/powerMeterP1") in so zapakirani kot JSON.
