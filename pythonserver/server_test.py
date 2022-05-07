@@ -8,10 +8,10 @@ URL = "http://130.162.44.178:8080/"
 #URL="http://localhost:8080/"
 # location given here
 
-user_id ="MONIKA"
-#user_id ="TIM"
-start = False
-loudness=1000
+#user_id ="MONIKA"
+user_id ="TIM"
+start = True
+loudness=10
 device = "fen"
 time = int(datetime.timestamp(datetime.now()))
 # defining a params dict for the parameters to be sent to the API
