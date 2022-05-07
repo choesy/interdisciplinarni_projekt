@@ -18,7 +18,7 @@ broker = 'rlab.lucami.org'
 port = 1883
 topic = "eCheck/powerMeterP1"
 # generate client ID with pub prefix randomly
-client_id = str(random.getrandbits(128))
+client_id = hex(random.getrandbits(128))
 username = 'lucmqtt'
 password = 'lucami2021'
 test=0
