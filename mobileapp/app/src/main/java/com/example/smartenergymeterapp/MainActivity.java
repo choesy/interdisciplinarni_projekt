@@ -57,6 +57,18 @@ import java.util.UUID;
 
 
 public class MainActivity extends AppCompatActivity {
+    //private final String BASE_URL = "http://192.168.8.105:8080";  // Localhost
+    //private final String BASE_URL = "http://130.162.44.178:8080";  // Deployed ip
+
+    // Tim
+    String userId = "TIM";
+    public static final UUID serviceUUID = UUID.fromString("2a62e9f4-cd4c-11ec-9d64-0242ac120002");
+
+    // Monika
+    //String userId = "MONIKA";
+    //public static final UUID serviceUUID = UUID.fromString("23937b16-acc8-11eb-8529-0242ac130003");
+
+    /* 1. BLE SCANNING */
     private BluetoothAdapter bluetoothAdapter; // PART 1: Enable Bluetooth
     private BluetoothLeScanner bluetoothLeScanner; // PART 2: Scan BLE devices
     private boolean scanning;
@@ -65,15 +77,12 @@ public class MainActivity extends AppCompatActivity {
     private static final long SCAN_PERIOD = 10000;  // Stops scanning after 10 seconds.
     ArrayList<BluetoothDevice> devicesDiscoveredList;
 
+    /* 2. BLE CONNECTION */
     BluetoothGatt bluetoothGatt;    // PART 3: Connect  to selected device
-    public static final UUID serviceUUID = UUID.fromString("23937b16-acc8-11eb-8529-0242ac130003");
     public static final UUID characteristicUUID = UUID.fromString("1A3AC131-31EF-758B-BC51-54A61958EF82");
     public static final UUID clientCharConfigUUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
-    /* HTTP REQUESTS */
-    String userId = UUID.randomUUID().toString();
-    private final String BASE_URL = "http://192.168.8.105:8080";  // CHANGE THIS TO SERVER IP!
-    //private final String BASE_URL = "http://130.162.44.178:8080";  // deployed server ip
+    /* 3. HTTP REQUESTS */
     private String DETECTING_DEVICE = "fen";
     private String capDevice = DETECTING_DEVICE.substring(0, 1).toUpperCase() + DETECTING_DEVICE.substring(1);
     private final int bufferLength = 3;
@@ -490,7 +499,7 @@ public class MainActivity extends AppCompatActivity {
                                 int responseMeasurement = response.getInt("measurment");
 
                                 /* MOCK ADDING CONSUMPTION*/
-                                if (responseMeasurement == 4 || responseMeasurement == 1) { // 4-finished, 1-collecting
+                                /*if (responseMeasurement == 4 || responseMeasurement == 1) { // 4-finished, 1-collecting
                                     //int receivedConsumption = response.getInt("calculation");
                                     //sumConsumption += receivedConsumption;
                                     sumConsumption += addMockConsumption;
@@ -500,9 +509,9 @@ public class MainActivity extends AppCompatActivity {
                                     consumptionNumber.setText(sumConsumption + "Wh");
                                     serverStatus.setText("Hairdryer");
                                     hairdryerIcon.setVisibility(View.VISIBLE);
-                                }
+                                }*/
                                 /* REAL RECEIVED CONSUMPTION*/
-                                /*if (responseMeasurement == 4 || responseMeasurement == 1) {
+                                if (responseMeasurement == 4 || responseMeasurement == 1) {
                                     int receivedConsumption = response.getInt("calculation");
                                     sumConsumption = receivedConsumption;
 
@@ -512,7 +521,7 @@ public class MainActivity extends AppCompatActivity {
                                     hairdryerIcon.setVisibility(View.VISIBLE);
 
                                     Log.d("DEBUG", "receivedConsumption: " + receivedConsumption);
-                                }*/
+                                }
 
                                 else {
                                     serverStatus.setText("");
