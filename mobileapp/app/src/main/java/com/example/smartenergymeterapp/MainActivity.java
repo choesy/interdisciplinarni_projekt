@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
@@ -24,12 +25,12 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ListView;
@@ -51,22 +52,13 @@ import org.json.JSONObject;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.UUID;
 
 
 public class MainActivity extends AppCompatActivity {
     //private final String BASE_URL = "http://192.168.8.105:8080";  // Localhost
-    //private final String BASE_URL = "http://130.162.44.178:8080";  // Deployed ip
-
-    // Tim
-    String userId = "TIM";
-    public static final UUID serviceUUID = UUID.fromString("2a62e9f4-cd4c-11ec-9d64-0242ac120002");
-
-    // Monika
-    //String userId = "MONIKA";
-    //public static final UUID serviceUUID = UUID.fromString("23937b16-acc8-11eb-8529-0242ac130003");
+    private final String BASE_URL = "http://130.162.44.178:8080";  // Deployed ip
 
     /* 1. BLE SCANNING */
     private BluetoothAdapter bluetoothAdapter; // PART 1: Enable Bluetooth
@@ -78,8 +70,10 @@ public class MainActivity extends AppCompatActivity {
     ArrayList<BluetoothDevice> devicesDiscoveredList;
 
     /* 2. BLE CONNECTION */
+    private String userId = "";
     BluetoothGatt bluetoothGatt;    // PART 3: Connect  to selected device
-    public static final UUID characteristicUUID = UUID.fromString("1A3AC131-31EF-758B-BC51-54A61958EF82");
+    public static UUID serviceUUID = UUID.fromString("D77977B1-5F1B-4914-9314-A30A4F624A11");
+    public static UUID characteristicUUID = UUID.fromString("D77977B2-5F1B-4914-9314-A30A4F624A11");
     public static final UUID clientCharConfigUUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
     /* 3. HTTP REQUESTS */
@@ -87,7 +81,7 @@ public class MainActivity extends AppCompatActivity {
     private String capDevice = DETECTING_DEVICE.substring(0, 1).toUpperCase() + DETECTING_DEVICE.substring(1);
     private final int bufferLength = 3;
     private String[] lastFewReadings = new String[bufferLength]; // ["fen", "fen", "fen"] --> for removing outliers to send "fen"
-    private float sumConsumption = 0;
+    private double sumConsumption = 0;
     private float addMockConsumption = 0.67f;// Mocks consumption of 1 second of running hairdryer (W)
 
     /** Views (UI) **/
@@ -129,7 +123,7 @@ public class MainActivity extends AppCompatActivity {
         bluetoothDataV = findViewById(R.id.bluetooth_data);
         deviceListV = findViewById(R.id.device_list);
         videoView = findViewById(R.id.videoView);
-        //pairButton = findViewById(R.id.pair_button);
+        pairButton = findViewById(R.id.detail_button);
         consumption = findViewById(R.id.consumption); consumption.setVisibility(View.INVISIBLE); consumption.setText("Consumption");
         consumptionNumber = findViewById(R.id.consumption_number); consumptionNumber.setVisibility(View.INVISIBLE); consumptionNumber.setText("0wh");
         serverStatus = findViewById(R.id.server_status); serverStatus.setVisibility(View.INVISIBLE); serverStatus.setText("");
@@ -317,6 +311,19 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         stateBluetoothV.setText("Connecting...");
+
+        String bluetoothDeviceName = (devicesDiscoveredList.get(deviceNumber)).getName();
+        Log.d("DEBUG NAME", bluetoothDeviceName);
+
+        if(bluetoothDeviceName.equals("TIM")) {
+            userId = "TIM";
+            serviceUUID = UUID.fromString("D77977B1-5F1B-4914-9314-A30A4F624A11");
+            characteristicUUID = UUID.fromString("D77977B2-5F1B-4914-9314-A30A4F624A11");
+        } else {
+            userId = "MONIKA";
+            serviceUUID = UUID.fromString("0515ED01-9905-4B2A-8C28-4E30DEF83C11");
+            characteristicUUID = UUID.fromString("0515ED02-9905-4B2A-8C28-4E30DEF83C11");
+        }
         bluetoothGatt = (devicesDiscoveredList.get(deviceNumber)).connectGatt(this, false, gattCallback);
     }
 
@@ -342,6 +349,8 @@ public class MainActivity extends AppCompatActivity {
         @SuppressLint("MissingPermission")
         @Override
         public void onServicesDiscovered(final BluetoothGatt gatt, final int status) {
+            Log.d("DEBUG SERVICE", serviceUUID.toString());
+            Log.d("DEBUG CHAR", characteristicUUID.toString());
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 BluetoothGattService bluetoothGattService = getSupportedGattService(serviceUUID); // Get service
                 BluetoothGattCharacteristic bluetoothGattServiceCharacteristic = bluetoothGattService.getCharacteristic(characteristicUUID); // Get characteristic
@@ -356,14 +365,13 @@ public class MainActivity extends AppCompatActivity {
 
                         bluetoothGatt.readCharacteristic(bluetoothGattServiceCharacteristic); // Start receiving data from characteristic
 
-
                         showToast("Connected."); stateBluetoothV.post(() -> stateBluetoothV.setText("Connected."));  // Update UI
+                        userIdV.setText(userId);
                         videoView.post(() -> videoView.setVisibility(View.GONE));
-                        //pairButton.post(() -> pairButton.setVisibility(View.GONE));
+                        pairButton.post(() -> pairButton.setText("Data"));
                         consumption.post(() -> consumption.setVisibility(View.VISIBLE));
                         consumptionNumber.post(() -> consumptionNumber.setVisibility(View.VISIBLE));
                         serverStatus.post(() -> serverStatus.setVisibility(View.VISIBLE));
-
 
                     } else {
                         showToast("Error connecting BLE service.");
@@ -409,7 +417,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-
     /** Utils **/
     public boolean isCharacteristicReadable(BluetoothGattCharacteristic pChar) {
         return ((pChar.getProperties() & BluetoothGattCharacteristic.PROPERTY_READ) != 0);
@@ -429,10 +436,12 @@ public class MainActivity extends AppCompatActivity {
     {
         runOnUiThread(() -> Toast.makeText(MainActivity.this, toast, Toast.LENGTH_SHORT).show());
     }
-    public static float round(float d, int decimalPlace) {
+    public static double round(double d, int decimalPlace) {
+        return BigDecimal.valueOf(d).setScale(decimalPlace,BigDecimal.ROUND_HALF_UP).doubleValue();
+    }
+    public static float roundFloat(float d, int decimalPlace) {
         return BigDecimal.valueOf(d).setScale(decimalPlace,BigDecimal.ROUND_HALF_UP).floatValue();
     }
-
 
     /** Permissions **/
     private void requestPermissions() {
@@ -510,17 +519,25 @@ public class MainActivity extends AppCompatActivity {
                                     serverStatus.setText("Hairdryer");
                                     hairdryerIcon.setVisibility(View.VISIBLE);
                                 }*/
-                                /* REAL RECEIVED CONSUMPTION*/
+                                    /* SERVER  RECEIVED CONSUMPTION*/
                                 if (responseMeasurement == 4 || responseMeasurement == 1) {
-                                    int receivedConsumption = response.getInt("calculation");
-                                    sumConsumption = receivedConsumption;
+                                    double receivedConsumption = response.getDouble("calculation");
+                                    receivedConsumption = round(receivedConsumption, 1);
 
                                     // Display
-                                    consumptionNumber.setText(sumConsumption + "Wh");
+                                    ValueAnimator animator = ValueAnimator.ofFloat((float)sumConsumption, (float)receivedConsumption);
+                                    animator.setDuration(5000);
+                                    animator.setInterpolator(new AccelerateDecelerateInterpolator());
+                                    animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                                        public void onAnimationUpdate(ValueAnimator animation) {
+                                            consumptionNumber.setText((roundFloat((float)animation.getAnimatedValue(), 1) + "Wh"));
+                                        }
+                                    });
+                                    animator.start();
+                                    sumConsumption = receivedConsumption;
+
                                     serverStatus.setText("Hairdryer");
                                     hairdryerIcon.setVisibility(View.VISIBLE);
-
-                                    Log.d("DEBUG", "receivedConsumption: " + receivedConsumption);
                                 }
 
                                 else {

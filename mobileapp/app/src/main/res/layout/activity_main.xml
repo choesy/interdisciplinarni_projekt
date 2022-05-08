@@ -11,10 +11,11 @@
         style="@style/Widget.MaterialComponents.ExtendedFloatingActionButton"
         android:layout_width="70dp"
         android:layout_height="70dp"
+        android:layout_marginTop="9dp"
         android:background="@drawable/round_button"
         android:fontFamily="@font/nhaasgrotesk55"
         android:onClick="onDetailButtonClick"
-        android:text="Data"
+        android:text="Pair"
         android:textColor="#323232"
         android:textColorLink="#FFFFFF"
         android:textSize="10sp"
@@ -23,34 +24,21 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/videoView"
-        app:layout_constraintVertical_bias="0.907" />
-
-    <TextView
-        android:id="@+id/userId"
-        android:layout_width="150dp"
-        android:layout_height="20dp"
-        android:text=" / "
-        android:textAlignment="textStart"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.285"
-        app:layout_constraintStart_toEndOf="@+id/bluetooth_state_label"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.827" />
+        app:layout_constraintTop_toBottomOf="@+id/device_list"
+        app:layout_constraintVertical_bias="0.0" />
 
     <ListView
         android:id="@+id/device_list"
         android:layout_width="200dp"
-        android:layout_height="60dp"
+        android:layout_height="50dp"
         android:divider="@null"
         android:dividerHeight="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.492"
+        app:layout_constraintHorizontal_bias="0.405"
         app:layout_constraintStart_toEndOf="@+id/bluetooth_devices_label"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.769" />
+        app:layout_constraintVertical_bias="0.847" />
 
     <TextView
         android:id="@+id/bluetooth_state"
@@ -60,62 +48,36 @@
         android:textAlignment="textStart"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.285"
+        app:layout_constraintHorizontal_bias="0.235"
         app:layout_constraintStart_toEndOf="@+id/bluetooth_state_label"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.682" />
+        app:layout_constraintVertical_bias="0.666" />
 
     <TextView
-        android:id="@+id/bluetooth_data_label"
-        android:layout_width="100dp"
+        android:id="@+id/userId"
+        android:layout_width="150dp"
         android:layout_height="20dp"
-        android:text="Data:"
-        android:textSize="14sp"
+        android:text=" / "
+        android:textAlignment="textStart"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.135"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintHorizontal_bias="0.235"
+        app:layout_constraintStart_toEndOf="@+id/bluetooth_state_label"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.773" />
-
-    <TextView
-        android:id="@+id/bluetooth_state_label"
-        android:layout_width="100dp"
-        android:layout_height="20dp"
-        android:text="Bluetooth:"
-        android:textSize="14sp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.135"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.682" />
-
-    <TextView
-        android:id="@+id/user_label"
-        android:layout_width="100dp"
-        android:layout_height="20dp"
-        android:text="User:"
-        android:textSize="14sp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.135"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.827" />
+        app:layout_constraintVertical_bias="0.71" />
 
     <TextView
         android:id="@+id/bluetooth_data"
         android:layout_width="150dp"
         android:layout_height="wrap_content"
-        android:text="/"
+        android:text=" "
         android:textAlignment="textStart"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.285"
+        app:layout_constraintHorizontal_bias="0.235"
         app:layout_constraintStart_toEndOf="@+id/bluetooth_data_label"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.768" />
+        app:layout_constraintVertical_bias="0.757" />
 
     <TextView
         android:id="@+id/bluetooth_devices_label"
@@ -130,7 +92,46 @@
         app:layout_constraintHorizontal_bias="0.135"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.725" />
+        app:layout_constraintVertical_bias="0.811" />
+
+    <TextView
+        android:id="@+id/bluetooth_data_label"
+        android:layout_width="100dp"
+        android:layout_height="20dp"
+        android:text="Data:"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.135"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.758" />
+
+    <TextView
+        android:id="@+id/user_label"
+        android:layout_width="100dp"
+        android:layout_height="20dp"
+        android:text="User:"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.135"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.71" />
+
+    <TextView
+        android:id="@+id/bluetooth_state_label"
+        android:layout_width="100dp"
+        android:layout_height="20dp"
+        android:text="Bluetooth:"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.135"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.666" />
 
     <VideoView
         android:id="@+id/videoView"
@@ -182,22 +183,11 @@
         app:layout_constraintTop_toBottomOf="@+id/consumption"
         app:layout_constraintVertical_bias="0.0" />
 
-    <ImageView
-        android:id="@+id/imageView"
-        android:layout_width="88dp"
-        android:layout_height="84dp"
-        android:layout_marginTop="36dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.498"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/consumption_number"
-        app:srcCompat="@android:drawable/ic_menu_gallery" />
-
     <TextView
         android:id="@+id/server_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="388dp"
+        android:layout_marginTop="368dp"
         android:fontFamily="@font/nhaasgrotesk55"
         android:text="server_status"
         android:textSize="20sp"
@@ -205,5 +195,16 @@
         app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/main_title" />
+
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="88dp"
+        android:layout_height="84dp"
+        android:layout_marginTop="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/consumption_number"
+        app:srcCompat="@android:drawable/ic_menu_gallery" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
