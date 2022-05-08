@@ -29,6 +29,7 @@ void microphone_detection(void);
 static bool microphone_inference_record(void);
 static int microphone_audio_signal_get_data(size_t offset, size_t length, float *out_ptr);
 void record_microphone_nc(void);
+void calc_magnetic_power(void);
 /*
  ** NOTE: If you run into TFLite arena allocation issue.
  **
@@ -64,29 +65,32 @@ static bool debug_nn = false; // Set this to true to see e.g. features generated
 
 
 #define NAME "MONIKA"
-#define BLE_UUID_SERVICE   "23937b16-acc8-11eb-8529-0242ac130003"
-
+#define BLE_UUID_SERVICE   "0515ED01-9905-4B2A-8C28-4E30DEF83C11"
+#define BLE_UUID_STRING_CHARACTERISTIC      "0515ED02-9905-4B2A-8C28-4E30DEF83C11"
 
 //#define NAME "TIM"
-//#define BLE_UUID_SERVICE "2a62e9f4-cd4c-11ec-9d64-0242ac120002"
+//#define BLE_UUID_SERVICE "D77977B1-5F1B-4914-9314-A30A4F624A11"
+//#define BLE_UUID_STRING_CHARACTERISTIC      "D77977B2-5F1B-4914-9314-A30A4F624A11"
 
 
 
 
-#define BLE_UUID_STRING_CHARACTERISTIC      "1A3AC131-31EF-758B-BC51-54A61958EF82"
 BLEService bleService(BLE_UUID_SERVICE);
 BLEStringCharacteristic bleStringCharacteristic( BLE_UUID_STRING_CHARACTERISTIC, BLERead | BLENotify, 100 ); // remote clients will be able to get notifications if this characteristic changes
 int prediction = 0;
 int oldPrediction = 0;
 long previousMillis = 0;
 long previousUpdateMillis = 0;
-volatile double currentPower=0;
+volatile float currentPower=0;
+//volatile float magneticpower=0;
 /** Audio buffers, pointers and selectors */
 char data_to_send[] = "Hello World!";
 
 
 
 void initializeBLEConnection() {
+
+
   if (!BLE.begin()) {   // initialize BLE
     Serial.println("starting BLE failed!");
     while (1);
@@ -108,7 +112,7 @@ void initializeBLEConnection() {
  */
 void setup()
 {
-    // put your setup code here, to run once:
+
     Serial.begin(115200);
     Serial.println("Edge Impulse Inferencing Demo");
 
@@ -118,11 +122,15 @@ void setup()
     ei_printf("\tFrame size: %d\n", EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE);
     ei_printf("\tSample length: %d ms.\n", EI_CLASSIFIER_RAW_SAMPLE_COUNT / 16);
     ei_printf("\tNo. of classes: %d\n", sizeof(ei_classifier_inferencing_categories) / sizeof(ei_classifier_inferencing_categories[0]));
+
     initializeBLEConnection();
     if (microphone_inference_start(EI_CLASSIFIER_RAW_SAMPLE_COUNT) == false) {
         ei_printf("ERR: Failed to setup audio sampling\r\n");
         return;
     }
+ //        if (!IMU.begin()) {
+  //  ei_printf("Failed to initialize IMU!\r\n");
+ // }
 }
 
 void loop(){
@@ -137,7 +145,7 @@ void loop(){
 
 
     while (central.connected()) {
-      
+    //calc_magnetic_power();
    record_microphone_nc();
 
    bleStringCharacteristic.writeValue(data_to_send);
@@ -199,6 +207,16 @@ void record_microphone_nc()
 
 
 }
+/*
+void calc_magnetic_power(){
+    if (IMU.magneticFieldAvailable()) {
+    float x,y,z;
+    IMU.readMagneticField(x, y, z);
+    magneticpower=x*x+y*y+z*z;
+    }
+
+}
+*/
 
 /**
  * @brief      PDM buffer full callback
@@ -300,6 +318,8 @@ static void microphone_inference_end(void)
     PDM.end();
     free(inference.buffer);
 }
+
+
 
 #if !defined(EI_CLASSIFIER_SENSOR) || EI_CLASSIFIER_SENSOR != EI_CLASSIFIER_SENSOR_MICROPHONE
 #error "Invalid model for current sensor."
