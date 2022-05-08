@@ -113,7 +113,7 @@ def calculateConsumption():
         if allusers == None:
             return 0
         for user in allusers:
-            if user.calculating==True:
+            if user.calculating==True and user.device!='tisina':
                 otheruser=users.query.filter(users.id!=user.id,users.calculating==True,users.device==user.device,users.loudness>user.loudness).first()
                 if otheruser==None:
                     user.totalConsumption+=lastval/360
