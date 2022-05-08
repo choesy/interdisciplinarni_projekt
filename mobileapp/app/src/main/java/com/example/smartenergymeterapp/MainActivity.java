@@ -481,6 +481,9 @@ public class MainActivity extends AppCompatActivity {
 
         }
         if(isAllEqual(lastFewReadings) && lastFewReadings[0].equals("tisina")) {
+            if(!stopOrStartSavingMeasurementsOnServer){
+                return;
+            }
             stopOrStartSavingMeasurementsOnServer = false; // stop saving
         }
 
