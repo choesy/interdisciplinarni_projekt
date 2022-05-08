@@ -47,8 +47,9 @@ void record_microphone_nc(void);
 /* Includes ---------------------------------------------------------------- */
 
 #include <PDM.h>
-#include <aleks-project-1_inferencing.h>
 #include <ArduinoBLE.h>
+#include <aleks-project-1_inferencing.h>
+
 /** Audio buffers, pointers and selectors */
 typedef struct {
     int16_t *buffer;
