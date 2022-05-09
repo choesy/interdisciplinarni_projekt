@@ -6,11 +6,11 @@
 <style>
 
 h1 {
-  font-size: 5vw;
+  font-size: 8rem;
 }
 
 h2 {
-  font-size: 5vw;
+  font-size: 8rem;
 }
 body {
   font-family: Arial, Helvetica, sans-serif;
@@ -44,6 +44,7 @@ body {
 }
 .container-fluid {
   width: 80%;
+  margin: 20px auto;
 
 }
 .card {
@@ -52,28 +53,34 @@ body {
   /* Added */
   padding: 20px;
   margin: 10px 10px 10px 0;
-  height: 15rem;
+  height: 40rem;
   background-color:#E5FDEF;
+
+}
+.text-middle {
+  display:flex;
+  flex-direction: column;
+  justify-content: space-evenly;
 }
 </style>
 </head>
 <body>
 
-<div class="container-fluid">
-    <div class="row">
-      <div class="col-lg-6 col-md-12">
+<div class="container-fluid h-100">
+    <div class="row h-100">
+      <div class="col-lg-12 col-md-12 col-xl-6">
         <div class="card text-center border-success">
 
-          <div class="card-body">
-            <h2 class="card-title text-padding" id="user1">-</h2>
-            <h1 class="card-text text-success text-padding" id="consumption1">-</h1>
+          <div class="card-body text-middle">
+            <h2 class="card-title text-padding" id="user1">monika</h2>
+            <h1 class="card-text text-success text-padding" id="consumption1">9kwh</h1>
           </div>
         </div>
       </div>
 
-      <div class="col-lg-6 col-md-12">
+      <div class="col-lg-12 col-md-12 col-xl-6">
       <div class="card text-center border-success">
-          <div class="card-body ">
+          <div class="card-body text-middle">
             <h2 class="card-title text-padding" id="user2">-</h2>
             <h1 class="card-text text-success text-padding" id="consumption2">-</h1>
           </div>
