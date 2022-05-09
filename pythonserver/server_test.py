@@ -11,7 +11,7 @@ URL="http://localhost:8080/"
 user_id ="MONIKA"
 #user_id ="TIM"
 start = True
-loudness=1201
+loudness=120112
 device = "fen"
 time = int(datetime.timestamp(datetime.now()))
 # defining a params dict for the parameters to be sent to the API
