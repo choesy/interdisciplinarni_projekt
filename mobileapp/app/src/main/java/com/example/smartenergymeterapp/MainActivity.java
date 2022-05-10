@@ -482,6 +482,8 @@ public class MainActivity extends AppCompatActivity {
         }
         if(isAllEqual(lastFewReadings) && lastFewReadings[0].equals("tisina")) {
             if(!stopOrStartSavingMeasurementsOnServer){
+                serverStatus.setText("");
+                hairdryerIcon.setVisibility(View.INVISIBLE);
                 return;
             }
             stopOrStartSavingMeasurementsOnServer = false; // stop saving
